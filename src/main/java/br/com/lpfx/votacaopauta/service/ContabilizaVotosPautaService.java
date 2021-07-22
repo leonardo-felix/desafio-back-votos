@@ -6,6 +6,8 @@ import br.com.lpfx.votacaopauta.model.Pauta;
 import br.com.lpfx.votacaopauta.repository.PautaRepository;
 import br.com.lpfx.votacaopauta.repository.VotoPautaRepository;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,16 +19,20 @@ import java.time.LocalDateTime;
 @Service
 @RequiredArgsConstructor
 public class ContabilizaVotosPautaService {
+    Logger logger = LoggerFactory.getLogger(ContabilizaVotosPautaService.class);
+
     private final PautaRepository pautaRepository;
     private final VotoPautaRepository votoPautaRepository;
     private final KafkaSender kafkaSender;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void contabilizaVotos(Long idPauta){
+    public Pauta contabilizaVotos(Long idPauta){
+        logger.info("Contabilizando pauta de ID " + idPauta);
+
         Pauta pauta = pautaRepository.getById(idPauta);
 
-        if (pauta.getFim().isBefore(LocalDateTime.now()))
-            throw new IllegalStateException("Pauta não finalizada");
+        if (pauta.getFim().isAfter(LocalDateTime.now()))
+            throw new IllegalStateException("Pauta ainda permite votos");
 
         if (pauta.getContabilizadoVotos())
             throw new IllegalStateException("Pauta já contabilizada");
@@ -37,14 +43,13 @@ public class ContabilizaVotosPautaService {
         pauta.setVotosSim(resultado.qtdSim);
         pauta.setVotosNao(resultado.qtdNao);
 
-        pautaRepository.save(pauta);
-
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
-                TransactionSynchronization.super.afterCommit();
                 kafkaSender.votacaoFinalizada(pauta);
             }
         });
+
+        return pautaRepository.save(pauta);
     }
 }

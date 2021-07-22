@@ -43,24 +43,12 @@ services:
       - "8080:8080"
     depends_on:
       - db
+      - kafka
+      - zookeeper
     environment:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/compose-postgres
       - SPRING_DATASOURCE_USERNAME=compose-postgres
       - SPRING_DATASOURCE_PASSWORD=compose-postgres
       - SPRING_JPA_HIBERNATE_DDL_AUTO=update
-
-#    depends_on:
-#      - kafka
-#      - zookeeper
-#
-#  frontend:
-#    build:
-#      context: frontend
-#      dockerfile: dockerfile
-#    ports:
-#      - "3000:3000"
-#    volumes:
-#      - './frontend:/app'
-#      - '/app/node_modules'
-#    environment:
-#      - CHOKIDAR_USEPOLLING=true
+      - logging.level.root=WARN
+      - logging.level.br.com.lpfx.votacaopauta=DEBUG

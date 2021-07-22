@@ -5,19 +5,19 @@ import br.com.lpfx.votacaopauta.dto.VotoPautaDTO;
 import br.com.lpfx.votacaopauta.exception.BadRequestException;
 import br.com.lpfx.votacaopauta.exception.InternalServerErrorException;
 import br.com.lpfx.votacaopauta.model.Pauta;
-import br.com.lpfx.votacaopauta.model.Usuario;
 import br.com.lpfx.votacaopauta.model.VotoPauta;
 import br.com.lpfx.votacaopauta.repository.PautaRepository;
 import br.com.lpfx.votacaopauta.repository.UsuarioRepository;
 import br.com.lpfx.votacaopauta.repository.VotoPautaRepository;
+import br.com.lpfx.votacaopauta.service.SistemaExterno;
 import io.swagger.annotations.Api;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.reactive.function.client.ClientResponse;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 
@@ -28,22 +28,25 @@ import java.util.List;
 @RestController
 @RequiredArgsConstructor
 @Api("Pauta")
+@Transactional
 public class PautaController {
     private final Logger logger = LoggerFactory.getLogger(PautaController.class);
 
     private final PautaRepository pautaRepository;
     private final UsuarioRepository usuarioRepository;
     private final VotoPautaRepository votoPautaRepository;
-
-    private final WebClient client = WebClient.create("https://user-info.herokuapp.com");
+    private final SistemaExterno sistemaExterno;
 
     @GetMapping("/pautas")
-    List<Pauta> todas(){
+    public List<Pauta> todas(){
+        logger.info("Listando todas as pautas");
         return pautaRepository.findAll();
     }
 
     @PostMapping("/pautas")
-    Pauta novaPauta(@RequestBody Pauta pauta){
+    public Pauta novaPauta(@RequestBody Pauta pauta){
+        logger.info("Inserindo nova pauta");
+
         // Se não tiver fim, utilizar padrão
         if(pauta.getFim() == null)
             pauta.setFim(pauta.getInicio().plus(Pauta.PADRAO_TEMPO_FIM_NULO));
@@ -52,7 +55,8 @@ public class PautaController {
     }
 
     @PutMapping("/pautas/{id}")
-    Pauta atualizaPauta(@RequestBody Pauta novaPauta, @PathVariable Long id){
+    public Pauta atualizaPauta(@RequestBody Pauta novaPauta, @PathVariable Long id){
+        logger.info("Efetuando consulta da pauta " + id);
         return pautaRepository.findById(id)
                 .map(pauta -> {
                     pauta.setDescricao(novaPauta.getDescricao());
@@ -63,21 +67,14 @@ public class PautaController {
     }
 
     @PostMapping("pautas/{id}/voto")
-    ResponseEntity<VotoPauta> votarPauta(@Valid @RequestBody VotoPautaDTO votoPautaDTO){
+    public ResponseEntity<VotoPauta> votarPauta(@Valid @RequestBody VotoPautaDTO votoPautaDTO){
         try {
-            RetornoValidacaoCPF retornoValidacaoCPF = this.client.get()
-                    .uri("users/{CPF}", votoPautaDTO.getCpf())
-                    .retrieve()
-                    .bodyToMono(RetornoValidacaoCPF.class)
-                    .block();
-
-            assert retornoValidacaoCPF != null;
+            RetornoValidacaoCPF retornoValidacaoCPF = sistemaExterno.obterSituacao(votoPautaDTO.getCpf());
 
             if(!RetornoValidacaoCPF.PODE_VOTAR.equals(retornoValidacaoCPF.getStatus())){
                 logger.error("Erro na requisição do serviço externo %s");
                 throw new BadRequestException(retornoValidacaoCPF.getStatus());
             }
-
         } catch (WebClientResponseException webClientResponseException){
             if(webClientResponseException.getStatusCode().equals(HttpStatus.NOT_FOUND))
                 throw new BadRequestException("CPF inválido");
@@ -87,11 +84,12 @@ public class PautaController {
 
         final Pauta pauta = pautaRepository.getById(votoPautaDTO.getIdPauta());
 
-        if(pauta.getFim().isAfter(LocalDateTime.now()))
+        if(pauta.getFim().isBefore(LocalDateTime.now()))
             throw new BadRequestException("Pauta já encerrada");
 
         VotoPauta votoPauta = new VotoPauta();
 
+        votoPauta.setVoto(votoPautaDTO.getVoto());
         votoPauta.setPauta(pauta);
         votoPauta.setUsuario(usuarioRepository.buscaOuCria(votoPautaDTO.getCpf()));
 

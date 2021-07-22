@@ -1,5 +1,6 @@
 package br.com.lpfx.votacaopauta.controller;
 
+import br.com.lpfx.votacaopauta.ConfigAdicional;
 import br.com.lpfx.votacaopauta.dto.VotoPautaDTO;
 import br.com.lpfx.votacaopauta.exception.BadRequestException;
 import br.com.lpfx.votacaopauta.model.Pauta;
@@ -8,31 +9,24 @@ import lombok.RequiredArgsConstructor;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.test.context.ActiveProfiles;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
+import static br.com.lpfx.votacaopauta.Mock.pautaTeste;
 import static org.junit.jupiter.api.Assertions.*;
 
+@ActiveProfiles("test")
+@Import(ConfigAdicional.class)
 @SpringBootTest
 class PautaControllerTest {
 
     @Autowired
     private PautaController pautaController;
-
-    private static Pauta pautaTeste(){
-        final LocalDateTime agora = LocalDateTime.now();
-        final LocalDateTime fim = agora.plusHours(12);
-
-        Pauta pauta = new Pauta();
-        pauta.setDescricao("Teste pauta");
-        pauta.setInicio(agora);
-        pauta.setFim(fim);
-
-        return pauta;
-    }
 
     @Test
     void todas_resultadoLista() {
@@ -82,23 +76,6 @@ class PautaControllerTest {
 
         Pauta pautaAtualizada = pautaController.atualizaPauta(pauta, idCriado);
         assertEquals(pautaAtualizada.getDescricao(), pauta.getDescricao());
-    }
-
-    @Test
-    void doVotarPautaCPFInvalido(){
-        assertThrows(BadRequestException.class, () -> {
-            Pauta pauta = pautaTeste();
-            pauta.setDescricao("Teste voto CPF Invalido");
-
-            final Long idCriado = pautaController.novaPauta(pauta).getId();
-
-            VotoPautaDTO votoPautaDTO = new VotoPautaDTO();
-            votoPautaDTO.setCpf("02104110156");
-            votoPautaDTO.setVoto(true);
-            votoPautaDTO.setIdPauta(idCriado);
-
-            pautaController.votarPauta(votoPautaDTO);
-        });
     }
 
     @Test
