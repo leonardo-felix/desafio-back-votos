@@ -15,12 +15,12 @@ Para executar a aplicação e suas dependências, basta ter no computador instal
 docker--composer up --build
 ````
 
+Após isso, os serviços já serão executados e estão disponíveis em http://localhost:8080/swagger-ui.html
+
 ### Para execução dos testes, é possivel testa-los via:
 ````
 mvn test
 ````
-
-Após isso, os serviços já serão executados e estão disponíveis em http://localhost:8080/swagger-ui.html
 
 #### Itens desenvolvidos
 * Tarefa Principal
